@@ -1,85 +1,89 @@
-import pywt
 import numpy as np
 import matplotlib.pyplot as plt
+import pywt
 
-# Function to add noise to the data
-def add_noise(data, error_rate=0.1):
-    noisy_data = data.copy()
-    num_errors = int(len(data) * error_rate)
-    error_indices = np.random.choice(len(data), num_errors, replace=False)
-    for idx in error_indices:
-        noisy_data[idx] = (noisy_data[idx] + np.random.randint(1, 10)) % 256
-    return noisy_data
+# Step 1: Generate a Digital Signal (Binary Sequence)
+# Generate a binary digital signal (0s and 1s)
+signal_length = 16  # Length of the signal
+digital_signal = np.random.choice([0, 1], size=signal_length)
 
-# Function to manually correct errors using redundancy (simplified example)
-def correct_errors(data, reference):
-    corrected = data.copy()
-    for i in range(len(data)):
-        if abs(data[i] - reference[i]) > 20:  # Threshold for error detection
-            corrected[i] = reference[i]  # Correct using reference
-    return corrected
+# Plot the original digital signal
+plt.figure(figsize=(8, 4))
+plt.stem(digital_signal)  # Removed 'use_line_collection'
+plt.title("Original Digital Signal")
+plt.xlabel("Index")
+plt.ylabel("Amplitude")
+plt.grid(True)
+plt.show()
 
-# Generate input signal
-np.random.seed(42)  # For reproducibility
-original_data = np.random.randint(0, 256, 64)  # Example: 64 random integers (0-255)
+# Step 2: Add Noise to the Digital Signal
+# Adding Gaussian noise to the digital signal
+noise = np.random.normal(0, 0.1, digital_signal.shape)
+noisy_signal = digital_signal + noise
 
-# Step 1: Wavelet-Based Channel Encoding
-wavelet = 'haar'
-coeffs = pywt.wavedec(original_data, wavelet, level=2)  # Wavelet decomposition
+# Plot the noisy digital signal
+plt.figure(figsize=(8, 4))
+plt.stem(noisy_signal)  # Removed 'use_line_collection'
+plt.title("Noisy Digital Signal")
+plt.xlabel("Index")
+plt.ylabel("Amplitude")
+plt.grid(True)
+plt.show()
 
-# Extract low-frequency coefficients
-low_frequency_coeffs = coeffs[0]
+# Step 3: Perform Wavelet Decomposition (Single Level)
+# Perform single-level wavelet decomposition using Haar wavelet
+coeffs = pywt.dwt(noisy_signal, 'haar')
 
-# Simulate transmission with noise
-noisy_low_frequency_coeffs = add_noise(low_frequency_coeffs, error_rate=0.1)
+# Coefficients: (CA, CD)
+CA, CD = coeffs
 
-# Correct errors manually using the original low-frequency coefficients as a reference
-corrected_low_frequency_coeffs = correct_errors(noisy_low_frequency_coeffs, low_frequency_coeffs)
+# Plot the Approximation (CA) and Detail (CD) coefficients
+plt.figure(figsize=(8, 6))
 
-# Replace low-frequency coefficients with corrected ones
-coeffs[0] = corrected_low_frequency_coeffs
+plt.subplot(2, 1, 1)
+plt.stem(CA)  # Removed 'use_line_collection'
+plt.title("Approximation Coefficients (CA)")
 
-# Reconstruct the signal using inverse wavelet transform
-reconstructed_wavelet_data = pywt.waverec(coeffs, wavelet)
-
-# Step 2: Alternative Method - Parity-Based Channel Encoding
-parity_data = np.hstack((original_data, [original_data.sum() % 256]))  # Add parity bit
-noisy_parity_data = add_noise(parity_data)
-
-# Parity decoding and error detection
-if noisy_parity_data[:-1].sum() % 256 == noisy_parity_data[-1]:
-    reconstructed_parity_data = noisy_parity_data[:-1]
-else:
-    reconstructed_parity_data = np.zeros_like(original_data)  # Error detected but not corrected
-
-# Plotting the signals
-plt.figure(figsize=(12, 8))
-
-# Original Signal
-plt.subplot(3, 1, 1)
-plt.plot(original_data, label="Original Signal", color='blue')
-plt.title("Original Signal")
-plt.legend()
-
-# Reconstructed Signal - Wavelet Encoding
-plt.subplot(3, 1, 2)
-plt.plot(reconstructed_wavelet_data[:len(original_data)], label="Reconstructed (Wavelet)", color='green')
-plt.title("Wavelet-Based Encoding")
-plt.legend()
-
-# Reconstructed Signal - Parity Encoding
-plt.subplot(3, 1, 3)
-plt.plot(reconstructed_parity_data, label="Reconstructed (Parity)", color='orange')
-plt.title("Parity-Based Encoding")
-plt.legend()
+plt.subplot(2, 1, 2)
+plt.stem(CD)  # Removed 'use_line_collection'
+plt.title("Detail Coefficients (CD)")
 
 plt.tight_layout()
 plt.show()
 
-# Compare results
-wavelet_mse = np.mean((original_data - reconstructed_wavelet_data[:len(original_data)]) ** 2)
-parity_mse = np.mean((original_data - reconstructed_parity_data) ** 2)
+# Step 4: Reconstruct the Digital Signal
+# Reconstruct the signal from CA and CD using inverse DWT
+reconstructed_signal = pywt.idwt(CA, CD, 'haar')
 
-print("\nPerformance Comparison:")
-print(f"Wavelet-Based Encoding Mean Squared Error (MSE): {wavelet_mse:.4f}")
-print(f"Parity-Based Encoding Mean Squared Error (MSE): {parity_mse:.4f}")
+# Step 5: Apply Thresholding to Reconstructed Signal
+# Threshold at 0.5 to classify values as 0 or 1
+thresholded_signal = np.where(reconstructed_signal >= 0.5, 1, 0)
+
+# Plot the original, noisy, reconstructed, and thresholded signals
+plt.figure(figsize=(8, 6))
+
+plt.subplot(4, 1, 1)
+plt.stem(digital_signal)  # Removed 'use_line_collection'
+plt.title("Original Digital Signal")
+
+plt.subplot(4, 1, 2)
+plt.stem(noisy_signal)  # Removed 'use_line_collection'
+plt.title("Noisy Digital Signal")
+
+plt.subplot(4, 1, 3)
+plt.stem(reconstructed_signal)  # Removed 'use_line_collection'
+plt.title("Reconstructed Digital Signal")
+
+plt.subplot(4, 1, 4)
+plt.stem(thresholded_signal)  # Removed 'use_line_collection'
+plt.title("Thresholded Signal")
+
+plt.tight_layout()
+plt.show()
+
+# Step 6: Print Coefficients
+# Print the CA and CD coefficients
+print("Approximation Coefficients (CA):")
+print(CA)
+print("\nDetail Coefficients (CD):")
+print(CD)
